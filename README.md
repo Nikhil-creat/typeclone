@@ -113,3 +113,11 @@ redeploy the frontend (Vercel is the simplest option for a Next.js app).
 ## License
 
 MIT — see [`LICENSE`](./LICENSE).
+
+## Author
+
+Designed and developed by **Nikhil Chary Sriramoju**
+
+- GitHub: [github.com/Nikhil-creat](https://github.com/Nikhil-creat)
+- LinkedIn: [in.linkedin.com/in/nikhil-chary-sriramoju-95041b38a](https://in.linkedin.com/in/nikhil-chary-sriramoju-95041b38a)
+- Email: [sriramojunikhil66@gmail.com](mailto:sriramojunikhil66@gmail.com)
