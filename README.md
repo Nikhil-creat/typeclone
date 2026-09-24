@@ -7,7 +7,7 @@ text inline in a Konva.js canvas with pixel-faithful re-rendering.
 
 Full architecture breakdown: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 
-## Designed and Developed eveloped by 
+## Designed and Developed by 
 # **NIKHIL CHARY SRIRAMOJU**
 BTech CSE (Final Year)
 
