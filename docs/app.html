@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>TypeClone — Live Editor</title>
+<style>
+  :root {
+    --bg:#0b0d12; --panel:#12151c; --border:#262b36; --text:#e7e9ee; --muted:#8b93a3; --accent:#6ea8ff;
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { padding:24px; border-bottom:1px solid var(--border); text-align:center; }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:0; color:var(--muted); font-size:14px; }
+  main { max-width:720px; margin:0 auto; padding:24px 16px 80px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
+  label { font-size:13px; color:var(--muted); display:block; margin-bottom:8px; }
+  input[type=text] {
+    width:100%; padding:10px 12px; background:#0e1117; border:1px solid var(--border);
+    border-radius:8px; color:var(--text); font-size:14px;
+  }
+  input[type=file] { color: var(--muted); }
+  button {
+    background:var(--accent); color:#0b0d12; border:none; border-radius:8px;
+    padding:10px 18px; font-weight:600; font-size:14px; cursor:pointer; margin-top:10px;
+  }
+  button:disabled { opacity:0.5; }
+  .region-list { max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
+  .region-item {
+    padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; font-size:14px;
+  }
+  .region-item:hover, .region-item.selected { background:#1a2030; }
+  .region-item small { color:var(--muted); display:block; margin-top:2px; }
+  .status { font-size:13px; color:var(--muted); margin-top:10px; }
+  .status.error { color:#ff8080; }
+  .status.ok { color:#7ee2b8; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TypeClone — Live Editor</h1>
+  <p>Upload a real PDF. Pick a text region. Replace it, styled to match.</p>
+</header>
+
+<main>
+  <div class="panel">
+    <label for="api-url">API base URL (your deployed backend)</label>
+    <input type="text" id="api-url" placeholder="https://typeclone-lite.onrender.com" />
+    <div class="status" id="api-status">Paste your Render URL above, then upload a PDF below.</div>
+  </div>
+
+  <div class="panel">
+    <label>Document type</label>
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <button id="mode-pdf" style="flex:1;">PDF (PyMuPDF — exact)</button>
+      <button id="mode-image" style="flex:1; background:#2a3346; color:var(--text);">Image (Gemini — approximate)</button>
+    </div>
+    <div class="status" id="mode-note">PDF mode reads exact embedded font data. Image mode uses Gemini AI to estimate text style from pixels — needs GEMINI_API_KEY set on your backend.</div>
+  </div>
+
+  <div class="panel">
+    <label for="pdf-file" id="file-label">Upload PDF</label>
+    <input type="file" id="pdf-file" accept="application/pdf" />
+    <button id="extract-btn">Extract text regions</button>
+    <div class="status" id="extract-status"></div>
+  </div>
+
+  <div class="panel" id="regions-panel" style="display:none;">
+    <label>Detected text regions — tap one to edit</label>
+    <div class="region-list" id="region-list"></div>
+  </div>
+
+  <div class="panel" id="edit-panel" style="display:none;">
+    <label for="new-text">New text (replaces the selected region)</label>
+    <input type="text" id="new-text" placeholder="Type replacement text" />
+    <button id="apply-btn">Apply edit &amp; download PDF</button>
+    <div class="status" id="edit-status"></div>
+  </div>
+</main>
+
+<script>
+  let documentId = null;
+  let regions = [];
+  let selectedRegion = null;
+  let mode = 'pdf'; // 'pdf' | 'image'
+
+  const modePdfBtn = document.getElementById('mode-pdf');
+  const modeImageBtn = document.getElementById('mode-image');
+  const fileLabel = document.getElementById('file-label');
+  const apiUrlInput = document.getElementById('api-url');
+  const apiStatus = document.getElementById('api-status');
+  const fileInput = document.getElementById('pdf-file');
+  const extractBtn = document.getElementById('extract-btn');
+  const extractStatus = document.getElementById('extract-status');
+  const regionsPanel = document.getElementById('regions-panel');
+  const regionList = document.getElementById('region-list');
+  const editPanel = document.getElementById('edit-panel');
+  const newTextInput = document.getElementById('new-text');
+  const applyBtn = document.getElementById('apply-btn');
+  const editStatus = document.getElementById('edit-status');
+
+  apiUrlInput.value = localStorage.getItem('typeclone_api_url') || '';
+  apiUrlInput.addEventListener('change', () => {
+    localStorage.setItem('typeclone_api_url', apiUrlInput.value.trim());
+  });
+
+  function apiBase() {
+    return apiUrlInput.value.trim().replace(/\/$/, '');
+  }
+
+  function setMode(newMode) {
+    mode = newMode;
+    modePdfBtn.style.background = mode === 'pdf' ? 'var(--accent)' : '#2a3346';
+    modePdfBtn.style.color = mode === 'pdf' ? '#0b0d12' : 'var(--text)';
+    modeImageBtn.style.background = mode === 'image' ? 'var(--accent)' : '#2a3346';
+    modeImageBtn.style.color = mode === 'image' ? '#0b0d12' : 'var(--text)';
+    fileInput.accept = mode === 'pdf' ? 'application/pdf' : 'image/png,image/jpeg';
+    fileLabel.textContent = mode === 'pdf' ? 'Upload PDF' : 'Upload PNG/JPG';
+    regionsPanel.style.display = 'none';
+    editPanel.style.display = 'none';
+    documentId = null;
+    regions = [];
+    selectedRegion = null;
+  }
+  modePdfBtn.addEventListener('click', () => setMode('pdf'));
+  modeImageBtn.addEventListener('click', () => setMode('image'));
+
+  extractBtn.addEventListener('click', async () => {
+    const base = apiBase();
+    if (!base) { apiStatus.textContent = 'Enter the API URL first.'; apiStatus.className = 'status error'; return; }
+    if (!fileInput.files.length) { extractStatus.textContent = 'Choose a file first.'; extractStatus.className = 'status error'; return; }
+
+    extractBtn.disabled = true;
+    extractStatus.textContent = mode === 'image' ? 'Uploading and analyzing with Gemini…' : 'Uploading and extracting…';
+    extractStatus.className = 'status';
+
+    try {
+      const form = new FormData();
+      form.append('file', fileInput.files[0]);
+      const endpoint = mode === 'pdf' ? '/extract' : '/extract-image';
+      const res = await fetch(base + endpoint, { method: 'POST', body: form });
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`Server returned ${res.status}: ${errBody.slice(0, 200)}`);
+      }
+      const data = await res.json();
+
+      documentId = data.document_id;
+      regions = data.regions;
+
+      regionList.innerHTML = '';
+      regions.forEach((r) => {
+        const div = document.createElement('div');
+        div.className = 'region-item';
+        const meta = mode === 'pdf'
+          ? `page ${r.page + 1} · ${r.font_family} · ${r.font_size_pt}pt · ${r.weight >= 600 ? 'bold' : 'regular'}${r.italic ? ' italic' : ''}`
+          : `~${r.font_size_px}px · ${r.bold ? 'bold' : 'regular'}${r.italic ? ' italic' : ''} · ${r.color_hex}`;
+        div.innerHTML = `"${r.text}"<small>${meta}</small>`;
+        div.addEventListener('click', () => selectRegion(r, div));
+        regionList.appendChild(div);
+      });
+
+      regionsPanel.style.display = 'block';
+      extractStatus.textContent = mode === 'pdf'
+        ? `Found ${regions.length} text regions across ${data.page_count} page(s).`
+        : `Gemini found ${regions.length} text regions.`;
+      extractStatus.className = 'status ok';
+    } catch (err) {
+      extractStatus.textContent = 'Failed: ' + err.message + ' (check the API URL, and that GEMINI_API_KEY is set on the backend for image mode; free-tier services also sleep after inactivity — first request can take ~30s)';
+      extractStatus.className = 'status error';
+    } finally {
+      extractBtn.disabled = false;
+    }
+  });
+
+  function selectRegion(region, el) {
+    selectedRegion = region;
+    document.querySelectorAll('.region-item').forEach((n) => n.classList.remove('selected'));
+    el.classList.add('selected');
+    newTextInput.value = region.text;
+    editPanel.style.display = 'block';
+    editStatus.textContent = '';
+  }
+
+  applyBtn.addEventListener('click', async () => {
+    const base = apiBase();
+    if (!selectedRegion || !documentId) { editStatus.textContent = 'Select a region first.'; editStatus.className = 'status error'; return; }
+    if (!newTextInput.value.trim()) { editStatus.textContent = 'Enter replacement text.'; editStatus.className = 'status error'; return; }
+
+    applyBtn.disabled = true;
+    editStatus.textContent = 'Rendering edited PDF…';
+    editStatus.className = 'status';
+
+    try {
+      const form = new FormData();
+      form.append('document_id', documentId);
+      form.append('region_json', JSON.stringify(selectedRegion));
+      form.append('new_text', newTextInput.value);
+
+      const endpoint = mode === 'pdf' ? '/edit' : '/edit-image';
+      const res = await fetch(base + endpoint, { method: 'POST', body: form });
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`Server returned ${res.status}: ${errBody.slice(0, 200)}`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = mode === 'pdf' ? 'edited.pdf' : 'edited.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      editStatus.textContent = 'Done — edited file downloaded.';
+      editStatus.className = 'status ok';
+    } catch (err) {
+      editStatus.textContent = 'Failed: ' + err.message;
+      editStatus.className = 'status error';
+    } finally {
+      applyBtn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
