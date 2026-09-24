@@ -1,0 +1,17 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+websockets==13.1
+celery[redis]==5.4.0
+redis==5.0.8
+pydantic==2.9.2
+python-multipart==0.0.9
+
+PyMuPDF==1.24.10
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+Pillow==10.4.0
+
+paddlepaddle==2.6.1
+paddleocr==2.8.1
+
+torch==2.4.1

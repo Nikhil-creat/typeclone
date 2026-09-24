@@ -1,0 +1,96 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: typeclone
+      POSTGRES_USER: typeclone
+      POSTGRES_PASSWORD: typeclone_dev_pw
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U typeclone"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio:RELEASE.2024-09-13T20-26-02Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: typeclone
+      MINIO_ROOT_PASSWORD: typeclone_dev_pw
+    volumes:
+      - miniodata:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /app/storage
+      DATABASE_URL: postgresql://typeclone:typeclone_dev_pw@postgres:5432/typeclone
+    volumes:
+      - storage:/app/storage
+    ports: ["8000:8000"]
+
+  worker-vector:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    command: ["celery", "-A", "main.celery_app", "worker", "-Q", "vector-extract,render", "-c", "4", "--loglevel=INFO"]
+    depends_on:
+      redis: { condition: service_healthy }
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /app/storage
+    volumes:
+      - storage:/app/storage
+
+  worker-raster:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    command: ["celery", "-A", "main.celery_app", "worker", "-Q", "raster-extract", "-c", "2", "--loglevel=INFO"]
+    depends_on:
+      redis: { condition: service_healthy }
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /app/storage
+    deploy:
+      resources:
+        limits: { memory: 4G }
+    volumes:
+      - storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on: [api]
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:
+  miniodata:
+  storage:

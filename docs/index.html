@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>TypeClone — Typography-Preserving Document Editor</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #12151c;
+    --border: #262b36;
+    --text: #e7e9ee;
+    --muted: #8b93a3;
+    --accent: #6ea8ff;
+    --accent2: #7ee2b8;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+  }
+  header {
+    padding: 64px 24px 40px; text-align: center;
+    background: radial-gradient(circle at 50% -20%, #1b2333, var(--bg) 60%);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: clamp(28px, 5vw, 44px); margin: 0 0 12px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  header p { color: var(--muted); max-width: 640px; margin: 0 auto; }
+  .badges { margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .badge { border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--muted); }
+  main { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  section { margin-bottom: 56px; }
+  h2 { font-size: 22px; border-left: 3px solid var(--accent); padding-left: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px;
+  }
+  .card h3 { margin-top: 0; font-size: 16px; color: var(--accent2); }
+  .card p { color: var(--muted); font-size: 14px; margin-bottom: 0; }
+  code, pre {
+    font-family: "SFMono-Regular", Consolas, monospace; font-size: 13px;
+  }
+  pre {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; overflow-x: auto;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+
+  /* Interactive demo */
+  #demo-wrap {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; position: relative;
+  }
+  #demo-stage {
+    background: #f4f1ea; border-radius: 8px; position: relative; height: 260px;
+    overflow: hidden; cursor: text;
+  }
+  .demo-text {
+    position: absolute; color: #1a1a1a; white-space: nowrap;
+  }
+  .demo-hint { color: var(--muted); font-size: 13px; margin-top: 12px; }
+
+  footer { text-align: center; color: var(--muted); padding: 40px 24px; border-top: 1px solid var(--border); font-size: 13px; }
+  a { color: var(--accent); }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f7f8fa; --panel: #ffffff; --border: #e3e6eb; --text: #14171f; --muted: #5b6472;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TypeClone</h1>
+  <p>An enterprise-grade PDF &amp; PNG typography engine — detects, clones, and re-renders text
+  with pixel-faithful font weight, style, baseline, and color, inside a live WYSIWYG canvas.</p>
+  <div class="badges">
+    <span class="badge">PyMuPDF vector engine</span>
+    <span class="badge">PaddleOCR + OpenCV raster engine</span>
+    <span class="badge">FastAPI · Celery · Redis</span>
+    <span class="badge">Konva.js canvas</span>
+    <span class="badge">WebSocket live sync</span>
+  </div>
+</header>
+
+<main>
+
+<section>
+  <h2>Try the fit-to-box engine</h2>
+  <div id="demo-wrap">
+    <div id="demo-stage">
+      <div class="demo-text" id="demo-node" contenteditable="true"
+           style="left:24px; top:100px; font: italic 700 28px Georgia, serif; color:#7a2e2e;">
+        Invoice Total: $1,204.00
+      </div>
+    </div>
+    <p class="demo-hint">Click the text and start typing — this mirrors the client-side
+      auto-shrink algorithm in <code>useTypographyCanvas.ts</code>: the string is re-measured
+      on every keystroke and the font size binary-searches down to stay inside the original box.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Core capabilities</h2>
+  <div class="grid">
+    <div class="card"><h3>Dual-Engine Extraction</h3><p>Structural PDF parsing (PyMuPDF) for vector text; OCR + layout analysis (PaddleOCR/OpenCV) for scans and PNGs — unified into one typography schema.</p></div>
+    <div class="card"><h3>Style Cloning</h3><p>Weight, italic slant, proportional scaling, tracking, and exact RGB color sampling, reproduced on redraw.</p></div>
+    <div class="card"><h3>Content-Aware Erase</h3><p>Vector redaction removes glyph outlines cleanly; raster inpainting (Telea) restores background texture before new ink is drawn.</p></div>
+    <div class="card"><h3>Font Similarity Matching</h3><p>Visual-metrics embedding (x-height, stroke density, slant) finds the closest available font when an exact family can't be resolved.</p></div>
+    <div class="card"><h3>Live Collaboration</h3><p>WebSocket channel per document streams render progress, undo/redo events, and peer cursor state to every connected client.</p></div>
+    <div class="card"><h3>Non-Destructive History</h3><p>Every edit is a diff in an undo/redo ledger — nothing is baked into the source document until export.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Architecture</h2>
+  <pre>Client (Next.js + Konva)
+   │  REST + WebSocket
+   ▼
+FastAPI Gateway ── Celery (vector-extract / raster-extract / render queues)
+   │                        │
+   ▼                        ▼
+Redis (broker)        PyMuPDF · PaddleOCR · OpenCV · PyTorch
+   │
+   ▼
+Postgres (metadata) · MinIO/S3 (documents)</pre>
+  <p>See <a href="https://github.com/OWNER/REPO/blob/main/ARCHITECTURE.md">ARCHITECTURE.md</a>
+     in the repo for the full data-flow breakdown and typography schema.</p>
+</section>
+
+<section>
+  <h2>API reference (selected)</h2>
+  <table>
+    <tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td><code>/documents/upload</code></td><td>Upload a PDF or PNG</td></tr>
+    <tr><td>POST</td><td><code>/documents/{id}/extract</code></td><td>Dispatch typography extraction (vector or raster queue)</td></tr>
+    <tr><td>POST</td><td><code>/documents/edit</code></td><td>Apply a text mutation to a region, auto-fitted to its bbox</td></tr>
+    <tr><td>POST</td><td><code>/documents/{id}/undo</code> / <code>/redo</code></td><td>Step through the non-destructive edit ledger</td></tr>
+    <tr><td>POST</td><td><code>/fonts/match</code></td><td>Nearest-font lookup by weight/italic/x-height profile</td></tr>
+    <tr><td>WS</td><td><code>/ws/documents/{id}</code></td><td>Live render-progress and collaboration channel</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Run it locally</h2>
+  <pre>git clone https://github.com/OWNER/REPO.git
+cd REPO
+docker compose up --build
+# API      → http://localhost:8000
+# Frontend → http://localhost:3000</pre>
+  <p>This documentation page is static and runs on GitHub Pages; the engine itself
+  (FastAPI + Celery + OpenCV/PaddleOCR/PyTorch) needs a real container host — see the
+  README for one-click deploy notes.</p>
+</section>
+
+</main>
+
+<footer>
+  TypeClone — built with PyMuPDF, PaddleOCR, OpenCV, PyTorch, FastAPI, Celery &amp; Konva.js.
+</footer>
+
+<script>
+  // Live client-side fit-to-box preview, mirroring fitFontSize() in useTypographyCanvas.ts
+  const node = document.getElementById('demo-node');
+  const boxWidth = 500;
+  const baseSize = 28;
+  const minSize = 12;
+
+  function measure(text, size, italic, weight) {
+    const c = measure._c || (measure._c = document.createElement('canvas'));
+    const ctx = c.getContext('2d');
+    ctx.font = `${italic ? 'italic' : 'normal'} ${weight} ${size}px Georgia, serif`;
+    return ctx.measureText(text).width;
+  }
+
+  function fit() {
+    const text = node.innerText;
+    let size = baseSize;
+    let w = measure(text, size, true, 700);
+    if (w > boxWidth) {
+      let lo = minSize, hi = baseSize;
+      for (let i = 0; i < 20; i++) {
+        const mid = (lo + hi) / 2;
+        if (measure(text, mid, true, 700) <= boxWidth) lo = mid; else hi = mid;
+      }
+      size = lo;
+    }
+    node.style.fontSize = size + 'px';
+  }
+
+  node.addEventListener('input', fit);
+</script>
+
+</body>
+</html>
