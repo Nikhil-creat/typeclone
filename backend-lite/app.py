@@ -1,40 +1,38 @@
 """
 app.py — TypeClone Lite
 ========================
-A real, working, single-service version of the PDF typography editor.
+Three document engines, one API:
+  - PDF    : PyMuPDF — exact embedded font data, renders page images for
+             tap-to-edit canvas overlay.
+  - Image  : Groq (default) or Gemini vision LLM — approximate style
+             detection, tap-to-edit directly on the uploaded image.
+  - DOCX   : python-docx — exact run-level styling, list-based editing
+             (no fixed layout to overlay on).
 
-No Celery, no Redis, no Postgres, no MinIO, no PaddleOCR/PyTorch — just
-FastAPI + PyMuPDF, synchronous, runs on Render's free tier.
-
-Flow:
-  1. POST /extract  — upload a PDF, get back every text region with its
-     real font, size, weight, italic, color, and bounding box.
-  2. POST /edit      — upload the same PDF + a region_id + new text,
-     get back a *new* PDF with that text replaced, cloned to the
-     original typography, auto-fit to the original box.
-
-This is the same core engine (typography extraction + style-cloned
-redraw) as the full architecture, just without the async task queue —
-because a single request is fast enough for one page at a time.
+No Celery/Redis/Postgres/MinIO — synchronous, single-service, deployable
+free on Render.
 """
 
 from __future__ import annotations
 
+import base64
 import io
+import json
 import re
 import uuid
 from typing import Optional
 
 import fitz  # PyMuPDF
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from PIL import Image, ImageDraw, ImageFont
 
 import ai_vision
+import docx_engine
 
-app = FastAPI(title="TypeClone Lite — Live PDF Typography Editor")
+app = FastAPI(title="TypeClone Lite — Live Document Editor")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,23 +41,34 @@ app.add_middleware(
 )
 
 # --------------------------------------------------------------------------- #
-# In-memory session store: uploaded PDF bytes keyed by a short-lived doc_id.
-# Fine for a single-instance free-tier deployment; swap for S3/Redis if you
-# outgrow it.
+# In-memory session stores (fine for personal/demo use — see README-LITE.md)
 # --------------------------------------------------------------------------- #
-_DOCUMENTS: dict[str, bytes] = {}
+_PDF_DOCS: dict[str, bytes] = {}
+_IMAGES: dict[str, bytes] = {}
+_DOCX_DOCS: dict[str, bytes] = {}
 
 _FLAG_ITALIC = 1 << 1
 _FLAG_BOLD = 1 << 4
 _BOLD_RE = re.compile(r"(bold|black|heavy|semibold|extrabold)", re.I)
 _ITALIC_RE = re.compile(r"(italic|oblique)", re.I)
 _SUBSET_RE = re.compile(r"^[A-Z]{6}\+")
+_PDF_RENDER_ZOOM = 1.5  # page image resolution multiplier for the canvas view
 
+
+def _evict_if_full(store: dict, limit: int = 150) -> None:
+    if len(store) > limit:
+        store.pop(next(iter(store)), None)
+
+
+# --------------------------------------------------------------------------- #
+# PDF — vector engine
+# --------------------------------------------------------------------------- #
 
 class TypographyRegion(BaseModel):
     region_id: str
     page: int
-    bbox: tuple[float, float, float, float]
+    bbox: tuple[float, float, float, float]     # PDF point units
+    bbox_pct: tuple[float, float, float, float]  # 0-100 of the rendered page image — for canvas overlay
     baseline_y: float
     text: str
     font_family: str
@@ -69,9 +78,11 @@ class TypographyRegion(BaseModel):
     color_rgb: tuple[int, int, int]
 
 
-class ExtractResponse(BaseModel):
+class ExtractPdfResponse(BaseModel):
     document_id: str
     page_count: int
+    page_images_base64: list[str]  # one PNG data (base64, no prefix) per page
+    page_sizes: list[tuple[float, float]]  # PDF point size per page, for reference
     regions: list[TypographyRegion]
 
 
@@ -80,9 +91,7 @@ def _clean_font(name: str) -> str:
 
 
 def _weight(font_name: str, flags: int) -> int:
-    if flags & _FLAG_BOLD or _BOLD_RE.search(font_name):
-        return 700
-    return 400
+    return 700 if (flags & _FLAG_BOLD or _BOLD_RE.search(font_name)) else 400
 
 
 def _italic(font_name: str, flags: int) -> bool:
@@ -93,20 +102,29 @@ def _rgb(color_int: int) -> tuple[int, int, int]:
     return ((color_int >> 16) & 0xFF, (color_int >> 8) & 0xFF, color_int & 0xFF)
 
 
-@app.post("/extract", response_model=ExtractResponse)
-async def extract(file: UploadFile = File(...)):
+@app.post("/extract", response_model=ExtractPdfResponse)
+async def extract_pdf(file: UploadFile = File(...)):
     if not (file.filename or "").lower().endswith(".pdf"):
-        raise HTTPException(400, "only .pdf files are supported")
+        raise HTTPException(400, "only .pdf files are supported here")
 
     pdf_bytes = await file.read()
     document_id = str(uuid.uuid4())
-    _DOCUMENTS[document_id] = pdf_bytes
+    _PDF_DOCS[document_id] = pdf_bytes
+    _evict_if_full(_PDF_DOCS)
 
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     regions: list[TypographyRegion] = []
+    page_images: list[str] = []
+    page_sizes: list[tuple[float, float]] = []
 
     for page_number in range(doc.page_count):
         page = doc[page_number]
+        page_w, page_h = page.rect.width, page.rect.height
+        page_sizes.append((page_w, page_h))
+
+        pix = page.get_pixmap(matrix=fitz.Matrix(_PDF_RENDER_ZOOM, _PDF_RENDER_ZOOM))
+        page_images.append(base64.b64encode(pix.tobytes("png")).decode("ascii"))
+
         raw = page.get_text("dict")
         for block in raw.get("blocks", []):
             if block.get("type") != 0:
@@ -119,10 +137,16 @@ async def extract(file: UploadFile = File(...)):
                     font_name = _clean_font(span.get("font", ""))
                     flags = span.get("flags", 0)
                     origin = span.get("origin", (0, 0))
+                    bbox = tuple(span.get("bbox", (0, 0, 0, 0)))
+                    bbox_pct = (
+                        bbox[0] / page_w * 100, bbox[1] / page_h * 100,
+                        bbox[2] / page_w * 100, bbox[3] / page_h * 100,
+                    )
                     regions.append(TypographyRegion(
                         region_id=str(uuid.uuid4()),
                         page=page_number,
-                        bbox=tuple(span.get("bbox", (0, 0, 0, 0))),
+                        bbox=bbox,
+                        bbox_pct=bbox_pct,
                         baseline_y=float(origin[1]),
                         text=span.get("text", ""),
                         font_family=font_name or "Helvetica",
@@ -135,11 +159,10 @@ async def extract(file: UploadFile = File(...)):
     page_count = doc.page_count
     doc.close()
 
-    if len(_DOCUMENTS) > 200:  # basic memory guard on free tier
-        oldest = next(iter(_DOCUMENTS))
-        _DOCUMENTS.pop(oldest, None)
-
-    return ExtractResponse(document_id=document_id, page_count=page_count, regions=regions)
+    return ExtractPdfResponse(
+        document_id=document_id, page_count=page_count,
+        page_images_base64=page_images, page_sizes=page_sizes, regions=regions,
+    )
 
 
 _BASE14 = {
@@ -165,18 +188,16 @@ def _fit_size(text: str, fontcode: str, box_width: float, start_size: float, min
 
 
 @app.post("/edit")
-async def edit(
+async def edit_pdf(
     document_id: str = Form(...),
-    region_json: str = Form(...),  # JSON-encoded TypographyRegion
+    region_json: str = Form(...),
     new_text: str = Form(...),
 ):
-    if document_id not in _DOCUMENTS:
+    if document_id not in _PDF_DOCS:
         raise HTTPException(404, "document not found or session expired — re-upload and extract again")
 
-    import json
     region = TypographyRegion(**json.loads(region_json))
-
-    pdf_bytes = _DOCUMENTS[document_id]
+    pdf_bytes = _PDF_DOCS[document_id]
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     page = doc[region.page]
 
@@ -206,45 +227,26 @@ async def edit(
     doc.close()
     out_buffer.seek(0)
 
+    # Update the in-memory session so subsequent edits (and any client-side
+    # re-extract-to-refresh-preview call) build on this edit, not the original.
+    _PDF_DOCS[document_id] = out_buffer.getvalue()
+    out_buffer.seek(0)
+
     return StreamingResponse(
-        out_buffer,
-        media_type="application/pdf",
+        out_buffer, media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=edited.pdf"},
     )
 
 
-@app.get("/health")
-async def health():
-    return {"status": "ok", "documents_in_memory": len(_DOCUMENTS), "gemini_configured": bool(ai_vision.GEMINI_API_KEY)}
-
-
 # --------------------------------------------------------------------------- #
-# Raster (PNG) support via Gemini — replaces the PaddleOCR+PyTorch pipeline
+# Image — Groq/Gemini vision engine
 # --------------------------------------------------------------------------- #
-
-_IMAGES: dict[str, bytes] = {}
 
 _FONT_CANDIDATES = {
-    (False, False): [
-        "assets/fonts/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-    ],
-    (True, False): [
-        "assets/fonts/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    ],
-    (False, True): [
-        "assets/fonts/DejaVuSans-Oblique.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
-    ],
-    (True, True): [
-        "assets/fonts/DejaVuSans-BoldOblique.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf",
-    ],
+    (False, False): ["assets/fonts/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"],
+    (True, False): ["assets/fonts/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"],
+    (False, True): ["assets/fonts/DejaVuSans-Oblique.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf"],
+    (True, True): ["assets/fonts/DejaVuSans-BoldOblique.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf"],
 }
 
 
@@ -256,7 +258,7 @@ def _resolve_font_path(bold: bool, italic: bool) -> str:
     raise HTTPException(
         500,
         "No TTF font found. Add DejaVuSans*.ttf files under backend-lite/assets/fonts/ "
-        "in your repo (see README-LITE.md) — none of the system font paths existed either.",
+        "in your repo (see README-LITE.md).",
     )
 
 
@@ -275,6 +277,7 @@ def _fit_pil_font(text: str, font_path: str, box_w: int, box_h: int, start_size:
 class ImageRegion(BaseModel):
     region_id: str
     bbox: tuple[int, int, int, int]  # pixel x0,y0,x1,y1
+    bbox_pct: tuple[float, float, float, float]  # 0-100, for canvas overlay
     text: str
     bold: bool
     italic: bool
@@ -286,11 +289,16 @@ class ExtractImageResponse(BaseModel):
     document_id: str
     width: int
     height: int
+    provider: str
     regions: list[ImageRegion]
 
 
 @app.post("/extract-image", response_model=ExtractImageResponse)
-async def extract_image(file: UploadFile = File(...)):
+async def extract_image(
+    file: UploadFile = File(...),
+    x_ai_provider: Optional[str] = Header(None),
+    x_ai_api_key: Optional[str] = Header(None),
+):
     filename = (file.filename or "").lower()
     if not (filename.endswith(".png") or filename.endswith(".jpg") or filename.endswith(".jpeg")):
         raise HTTPException(400, "only .png/.jpg/.jpeg files are supported")
@@ -299,17 +307,23 @@ async def extract_image(file: UploadFile = File(...)):
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     width, height = img.size
 
+    provider = (x_ai_provider or ai_vision.DEFAULT_PROVIDER).lower()
+
     try:
-        raw_regions = ai_vision.analyze_image(image_bytes, mime_type=file.content_type or "image/png")
-    except ai_vision.GeminiNotConfigured as e:
+        raw_regions = ai_vision.analyze_image(
+            image_bytes, mime_type=file.content_type or "image/png",
+            provider=provider, api_key=x_ai_api_key,
+        )
+    except ai_vision.AIVisionNotConfigured as e:
         raise HTTPException(503, str(e))
-    except ai_vision.GeminiRequestFailed as e:
-        raise HTTPException(502, f"Gemini analysis failed: {e}")
+    except ai_vision.AIVisionRequestFailed as e:
+        raise HTTPException(502, f"{provider} analysis failed: {e}")
 
     document_id = str(uuid.uuid4())
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     _IMAGES[document_id] = buf.getvalue()
+    _evict_if_full(_IMAGES)
 
     regions: list[ImageRegion] = []
     for r in raw_regions:
@@ -318,6 +332,7 @@ async def extract_image(file: UploadFile = File(...)):
             regions.append(ImageRegion(
                 region_id=str(uuid.uuid4()),
                 bbox=(x0, y0, x1, y1),
+                bbox_pct=(x0 / width * 100, y0 / height * 100, x1 / width * 100, y1 / height * 100),
                 text=r.get("text", ""),
                 bold=bool(r.get("bold", False)),
                 italic=bool(r.get("italic", False)),
@@ -325,13 +340,9 @@ async def extract_image(file: UploadFile = File(...)):
                 font_size_px=max(int((y1 - y0) * 0.85), 8),
             ))
         except (KeyError, TypeError, ValueError):
-            continue  # skip malformed entries rather than failing the whole request
+            continue
 
-    if len(_IMAGES) > 100:
-        oldest = next(iter(_IMAGES))
-        _IMAGES.pop(oldest, None)
-
-    return ExtractImageResponse(document_id=document_id, width=width, height=height, regions=regions)
+    return ExtractImageResponse(document_id=document_id, width=width, height=height, provider=provider, regions=regions)
 
 
 @app.post("/edit-image")
@@ -343,15 +354,11 @@ async def edit_image(
     if document_id not in _IMAGES:
         raise HTTPException(404, "image not found or session expired — re-upload and extract again")
 
-    import json
     region = ImageRegion(**json.loads(region_json))
-
     img = Image.open(io.BytesIO(_IMAGES[document_id])).convert("RGB")
     x0, y0, x1, y1 = region.bbox
     box_w, box_h = x1 - x0, y1 - y0
 
-    # Sample background color from just outside the box (simple flat-fill
-    # erase — no OpenCV inpainting needed, keeps this deployable on free tier).
     sample_points = [
         (max(x0 - 3, 0), y0), (min(x1 + 3, img.width - 1), y0),
         (x0, max(y0 - 3, 0)), (x0, min(y1 + 3, img.height - 1)),
@@ -369,10 +376,90 @@ async def edit_image(
 
     out = io.BytesIO()
     img.save(out, format="PNG")
+    _IMAGES[document_id] = out.getvalue()  # so further edits build on this one
     out.seek(0)
 
     return StreamingResponse(
-        out,
-        media_type="image/png",
+        out, media_type="image/png",
         headers={"Content-Disposition": "attachment; filename=edited.png"},
     )
+
+
+# --------------------------------------------------------------------------- #
+# DOCX — python-docx engine
+# --------------------------------------------------------------------------- #
+
+class DocxRunModel(BaseModel):
+    region_id: str
+    paragraph_index: int
+    run_index: int
+    text: str
+    bold: bool
+    italic: bool
+    underline: bool
+    font_name: Optional[str]
+    font_size_pt: Optional[float]
+    color_hex: Optional[str]
+
+
+class ExtractDocxResponse(BaseModel):
+    document_id: str
+    runs: list[DocxRunModel]
+
+
+@app.post("/extract-docx", response_model=ExtractDocxResponse)
+async def extract_docx_endpoint(file: UploadFile = File(...)):
+    if not (file.filename or "").lower().endswith(".docx"):
+        raise HTTPException(400, "only .docx files are supported here")
+
+    docx_bytes = await file.read()
+    document_id = str(uuid.uuid4())
+    _DOCX_DOCS[document_id] = docx_bytes
+    _evict_if_full(_DOCX_DOCS)
+
+    try:
+        runs = docx_engine.extract_docx(docx_bytes)
+    except Exception as e:
+        raise HTTPException(400, f"could not parse .docx: {e}")
+
+    return ExtractDocxResponse(
+        document_id=document_id,
+        runs=[DocxRunModel(**r.__dict__) for r in runs],
+    )
+
+
+@app.post("/edit-docx")
+async def edit_docx_endpoint(
+    document_id: str = Form(...),
+    paragraph_index: int = Form(...),
+    run_index: int = Form(...),
+    new_text: str = Form(...),
+):
+    if document_id not in _DOCX_DOCS:
+        raise HTTPException(404, "document not found or session expired — re-upload and extract again")
+
+    try:
+        edited_bytes = docx_engine.edit_docx(_DOCX_DOCS[document_id], paragraph_index, run_index, new_text)
+    except IndexError as e:
+        raise HTTPException(400, str(e))
+
+    _DOCX_DOCS[document_id] = edited_bytes
+
+    return StreamingResponse(
+        io.BytesIO(edited_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": "attachment; filename=edited.docx"},
+    )
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "pdf_docs_in_memory": len(_PDF_DOCS),
+        "images_in_memory": len(_IMAGES),
+        "docx_docs_in_memory": len(_DOCX_DOCS),
+        "default_ai_provider": ai_vision.DEFAULT_PROVIDER,
+        "groq_configured": bool(ai_vision.GROQ_API_KEY_ENV),
+        "gemini_configured": bool(ai_vision.GEMINI_API_KEY_ENV),
+    }

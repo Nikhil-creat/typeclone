@@ -6,47 +6,67 @@
 <title>TypeClone — Live Editor</title>
 <style>
   :root {
-    --bg:#0b0d12; --panel:#12151c; --border:#262b36; --text:#e7e9ee; --muted:#8b93a3; --accent:#6ea8ff;
+    --bg:#0b0d12; --panel:#12151c; --border:#262b36; --text:#e7e9ee; --muted:#8b93a3; --accent:#6ea8ff; --good:#7ee2b8;
     padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,Segoe UI,Roboto,sans-serif; }
-  header { padding:24px; border-bottom:1px solid var(--border); text-align:center; }
-  header h1 { margin:0 0 6px; font-size:22px; }
-  header p { margin:0; color:var(--muted); font-size:14px; }
-  main { max-width:720px; margin:0 auto; padding:24px 16px 80px; }
-  .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
-  label { font-size:13px; color:var(--muted); display:block; margin-bottom:8px; }
-  input[type=text] {
-    width:100%; padding:10px 12px; background:#0e1117; border:1px solid var(--border);
-    border-radius:8px; color:var(--text); font-size:14px;
-  }
-  input[type=file] { color: var(--muted); }
-  button {
-    background:var(--accent); color:#0b0d12; border:none; border-radius:8px;
-    padding:10px 18px; font-weight:600; font-size:14px; cursor:pointer; margin-top:10px;
-  }
-  button:disabled { opacity:0.5; }
-  .region-list { max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
-  .region-item {
-    padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; font-size:14px;
-  }
-  .region-item:hover, .region-item.selected { background:#1a2030; }
-  .region-item small { color:var(--muted); display:block; margin-top:2px; }
-  .status { font-size:13px; color:var(--muted); margin-top:10px; }
-  .status.error { color:#ff8080; }
-  .status.ok { color:#7ee2b8; }
   .credit-strip {
     text-align: center; padding: 8px 16px; font-size: 11.5px; letter-spacing: 0.06em;
     color: var(--muted); border-bottom: 1px solid var(--border); background: #0e1015;
   }
-  .credit-strip strong { color: #7ee2b8; font-weight: 700; }
+  .credit-strip strong { color: var(--good); font-weight: 700; }
   .credit-strip a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--border); }
+  header { padding:20px 16px; border-bottom:1px solid var(--border); text-align:center; }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:0; color:var(--muted); font-size:14px; }
   .back-link { display:block; text-align:center; padding:10px; font-size:13px; color:var(--muted); text-decoration:none; }
+  main { max-width:780px; margin:0 auto; padding:20px 14px 80px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:16px; }
+  label { font-size:13px; color:var(--muted); display:block; margin-bottom:8px; }
+  input[type=text], input[type=password], select {
+    width:100%; padding:10px 12px; background:#0e1117; border:1px solid var(--border);
+    border-radius:8px; color:var(--text); font-size:14px; margin-bottom:8px;
+  }
+  input[type=file] { color: var(--muted); }
+  button {
+    background:var(--accent); color:#0b0d12; border:none; border-radius:8px;
+    padding:10px 16px; font-weight:600; font-size:14px; cursor:pointer;
+  }
+  button.secondary { background:#2a3346; color:var(--text); }
+  button.small { padding:6px 12px; font-size:13px; }
+  button:disabled { opacity:0.5; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .status { font-size:13px; color:var(--muted); margin-top:8px; }
+  .status.error { color:#ff8080; }
+  .status.ok { color:var(--good); }
   .info-box {
     background:#0e1117; border:1px solid var(--border); border-left:3px solid var(--accent);
-    border-radius:6px; padding:12px 14px; font-size:13px; color:var(--muted); margin-top:10px;
+    border-radius:6px; padding:10px 12px; font-size:12.5px; color:var(--muted); margin-top:8px;
   }
+  .mode-btn { flex:1; min-width:100px; }
+  .mode-btn.active { background:var(--accent); color:#0b0d12; }
+  .mode-btn:not(.active) { background:#2a3346; color:var(--text); }
+
+  #canvas-wrap { position:relative; display:inline-block; max-width:100%; touch-action:manipulation; }
+  #canvas-img { display:block; max-width:100%; height:auto; border-radius:6px; }
+  .region-box {
+    position:absolute; border:1.5px solid rgba(110,168,255,0.55); background:rgba(110,168,255,0.10);
+    cursor:pointer; border-radius:2px;
+  }
+  .region-box:active, .region-box.editing { background:rgba(126,226,184,0.25); border-color:var(--good); }
+  #page-nav { display:flex; gap:8px; align-items:center; justify-content:center; margin-top:10px; font-size:13px; color:var(--muted); }
+
+  #edit-popover {
+    display:none; position:fixed; z-index:50; background:var(--panel); border:1px solid var(--accent);
+    border-radius:10px; padding:12px; box-shadow:0 8px 24px rgba(0,0,0,0.5); width:min(320px, 90vw);
+  }
+  #edit-popover input { margin-bottom:8px; }
+
+  .run-list { max-height:340px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
+  .run-item { padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; font-size:14px; }
+  .run-item:hover, .run-item.selected { background:#1a2030; }
+  .run-item small { color:var(--muted); display:block; margin-top:2px; }
 </style>
 </head>
 <body>
@@ -60,196 +80,385 @@
 
 <header>
   <h1>TypeClone — Live Editor</h1>
-  <p>Upload a real PDF or image. Pick a text region. Replace it, styled to match.</p>
+  <p>Upload a PDF, image, or Word doc. Tap detected text directly to edit it in place.</p>
 </header>
 
 <main>
   <div class="panel">
     <label for="api-url">API base URL (your deployed backend)</label>
     <input type="text" id="api-url" placeholder="https://typeclone-lite.onrender.com" />
-    <div class="status" id="api-status">Paste your Render URL above, then upload a file below.</div>
+    <div class="status" id="api-status">Paste your Render URL above.</div>
+  </div>
+
+  <div class="panel" id="ai-key-panel">
+    <label>AI provider &amp; API key (Image mode only)</label>
+    <div class="row" style="margin-bottom:8px;">
+      <select id="ai-provider" style="flex:1; margin-bottom:0;">
+        <option value="groq" selected>Groq (free, fast — default)</option>
+        <option value="gemini">Gemini</option>
+      </select>
+    </div>
+    <input type="password" id="ai-key" placeholder="Paste your Groq/Gemini API key" />
+    <div class="row">
+      <button id="save-key-btn" class="small">Save API Key</button>
+      <button id="clear-key-btn" class="small secondary">Clear</button>
+      <span class="status" id="key-status" style="margin:0;"></span>
+    </div>
     <div class="info-box">
-      <strong>About the Gemini API key:</strong> it does NOT go here. For security it's set once
-      as an environment variable on your Render backend (Render dashboard → your service →
-      Environment tab → <code>GEMINI_API_KEY</code>), never typed into this page. This box only
-      needs your backend's URL. PDF mode doesn't need a key at all — only Image mode does.
+      Saved only in <em>this browser's</em> local storage and sent as a request header
+      directly to your own backend — never to us, never stored server-side. Get a free
+      Groq key at <a href="https://console.groq.com/keys" style="color:var(--accent);">console.groq.com/keys</a>.
+      Skip this entirely if you set <code>GROQ_API_KEY</code> as an environment variable
+      on Render instead (more secure for a shared deployment).
     </div>
   </div>
 
   <div class="panel">
     <label>Document type</label>
-    <div style="display:flex; gap:8px; margin-bottom:12px;">
-      <button id="mode-pdf" style="flex:1;">PDF (PyMuPDF — exact)</button>
-      <button id="mode-image" style="flex:1; background:#2a3346; color:var(--text);">Image (Gemini — approximate)</button>
+    <div class="row">
+      <button class="mode-btn active" id="mode-pdf">PDF</button>
+      <button class="mode-btn" id="mode-image">Image</button>
+      <button class="mode-btn" id="mode-docx">Word (.docx)</button>
     </div>
-    <div class="status" id="mode-note">PDF mode reads exact embedded font data. Image mode uses Gemini AI to estimate text style from pixels — needs GEMINI_API_KEY set on your backend.</div>
+    <div class="status" id="mode-note">PyMuPDF reads exact embedded font data — no API key needed.</div>
   </div>
 
   <div class="panel">
-    <label for="pdf-file" id="file-label">Upload PDF</label>
-    <input type="file" id="pdf-file" accept="application/pdf" />
-    <button id="extract-btn">Extract text regions</button>
+    <label id="file-label">Upload PDF</label>
+    <input type="file" id="file-input" accept="application/pdf" />
+    <div class="row" style="margin-top:8px;">
+      <button id="extract-btn">Analyze document</button>
+      <button id="download-btn" class="secondary" style="display:none;">Download edited file</button>
+    </div>
     <div class="status" id="extract-status"></div>
   </div>
 
-  <div class="panel" id="regions-panel" style="display:none;">
-    <label>Detected text regions — tap one to edit</label>
-    <div class="region-list" id="region-list"></div>
+  <div class="panel" id="canvas-panel" style="display:none;">
+    <label>Tap any highlighted text to edit it</label>
+    <div id="canvas-wrap">
+      <img id="canvas-img" />
+      <div id="region-overlay"></div>
+    </div>
+    <div id="page-nav" style="display:none;">
+      <button class="small secondary" id="prev-page">← Prev</button>
+      <span id="page-label"></span>
+      <button class="small secondary" id="next-page">Next →</button>
+    </div>
   </div>
 
-  <div class="panel" id="edit-panel" style="display:none;">
-    <label for="new-text">New text (replaces the selected region)</label>
-    <input type="text" id="new-text" placeholder="Type replacement text" />
-    <button id="apply-btn">Apply edit &amp; download PDF</button>
-    <div class="status" id="edit-status"></div>
+  <div class="panel" id="list-panel" style="display:none;">
+    <label>Tap a run to edit it</label>
+    <div class="run-list" id="run-list"></div>
   </div>
 </main>
 
 <a class="back-link" href="./index.html">← Back to Docs</a>
 
-<script>
-  let documentId = null;
-  let regions = [];
-  let selectedRegion = null;
-  let mode = 'pdf'; // 'pdf' | 'image'
+<div id="edit-popover">
+  <input type="text" id="popover-text" />
+  <div class="row">
+    <button class="small" id="popover-save">Save</button>
+    <button class="small secondary" id="popover-cancel">Cancel</button>
+  </div>
+</div>
 
-  const modePdfBtn = document.getElementById('mode-pdf');
-  const modeImageBtn = document.getElementById('mode-image');
-  const fileLabel = document.getElementById('file-label');
+<script>
+  let mode = 'pdf';
+  let documentId = null;
+  let currentFile = null;
+  let currentFilename = 'edited';
+  let pdfPages = [];
+  let pdfRegionsByPage = {};
+  let currentPage = 0;
+  let imageRegions = [];
+  let docxRuns = [];
+  let activeRegionForEdit = null;
+  let activeEditKind = null;
+
   const apiUrlInput = document.getElementById('api-url');
   const apiStatus = document.getElementById('api-status');
-  const fileInput = document.getElementById('pdf-file');
+  const providerSelect = document.getElementById('ai-provider');
+  const keyInput = document.getElementById('ai-key');
+  const saveKeyBtn = document.getElementById('save-key-btn');
+  const clearKeyBtn = document.getElementById('clear-key-btn');
+  const keyStatus = document.getElementById('key-status');
+  const modePdfBtn = document.getElementById('mode-pdf');
+  const modeImageBtn = document.getElementById('mode-image');
+  const modeDocxBtn = document.getElementById('mode-docx');
+  const modeNote = document.getElementById('mode-note');
+  const fileLabel = document.getElementById('file-label');
+  const fileInput = document.getElementById('file-input');
   const extractBtn = document.getElementById('extract-btn');
+  const downloadBtn = document.getElementById('download-btn');
   const extractStatus = document.getElementById('extract-status');
-  const regionsPanel = document.getElementById('regions-panel');
-  const regionList = document.getElementById('region-list');
-  const editPanel = document.getElementById('edit-panel');
-  const newTextInput = document.getElementById('new-text');
-  const applyBtn = document.getElementById('apply-btn');
-  const editStatus = document.getElementById('edit-status');
+  const canvasPanel = document.getElementById('canvas-panel');
+  const canvasImg = document.getElementById('canvas-img');
+  const regionOverlay = document.getElementById('region-overlay');
+  const pageNav = document.getElementById('page-nav');
+  const prevPageBtn = document.getElementById('prev-page');
+  const nextPageBtn = document.getElementById('next-page');
+  const pageLabel = document.getElementById('page-label');
+  const listPanel = document.getElementById('list-panel');
+  const runList = document.getElementById('run-list');
+  const popover = document.getElementById('edit-popover');
+  const popoverText = document.getElementById('popover-text');
+  const popoverSave = document.getElementById('popover-save');
+  const popoverCancel = document.getElementById('popover-cancel');
 
   apiUrlInput.value = localStorage.getItem('typeclone_api_url') || '';
-  apiUrlInput.addEventListener('change', () => {
-    localStorage.setItem('typeclone_api_url', apiUrlInput.value.trim());
+  apiUrlInput.addEventListener('change', () => localStorage.setItem('typeclone_api_url', apiUrlInput.value.trim()));
+
+  providerSelect.value = localStorage.getItem('typeclone_ai_provider') || 'groq';
+  const savedKey = localStorage.getItem('typeclone_ai_key_' + providerSelect.value);
+  if (savedKey) { keyInput.value = savedKey; keyStatus.textContent = 'Loaded saved key.'; keyStatus.className = 'status ok'; }
+  providerSelect.addEventListener('change', () => {
+    localStorage.setItem('typeclone_ai_provider', providerSelect.value);
+    const k = localStorage.getItem('typeclone_ai_key_' + providerSelect.value);
+    keyInput.value = k || '';
+    keyStatus.textContent = k ? 'Loaded saved key.' : '';
+    keyStatus.className = 'status ok';
+  });
+  saveKeyBtn.addEventListener('click', () => {
+    localStorage.setItem('typeclone_ai_key_' + providerSelect.value, keyInput.value.trim());
+    keyStatus.textContent = 'Saved in this browser.';
+    keyStatus.className = 'status ok';
+  });
+  clearKeyBtn.addEventListener('click', () => {
+    localStorage.removeItem('typeclone_ai_key_' + providerSelect.value);
+    keyInput.value = '';
+    keyStatus.textContent = 'Cleared.';
+    keyStatus.className = 'status';
   });
 
-  function apiBase() {
-    return apiUrlInput.value.trim().replace(/\/$/, '');
-  }
+  function apiBase() { return apiUrlInput.value.trim().replace(/\/$/, ''); }
 
   function setMode(newMode) {
     mode = newMode;
-    modePdfBtn.style.background = mode === 'pdf' ? 'var(--accent)' : '#2a3346';
-    modePdfBtn.style.color = mode === 'pdf' ? '#0b0d12' : 'var(--text)';
-    modeImageBtn.style.background = mode === 'image' ? 'var(--accent)' : '#2a3346';
-    modeImageBtn.style.color = mode === 'image' ? '#0b0d12' : 'var(--text)';
-    fileInput.accept = mode === 'pdf' ? 'application/pdf' : 'image/png,image/jpeg';
-    fileLabel.textContent = mode === 'pdf' ? 'Upload PDF' : 'Upload PNG/JPG';
-    regionsPanel.style.display = 'none';
-    editPanel.style.display = 'none';
-    documentId = null;
-    regions = [];
-    selectedRegion = null;
+    [modePdfBtn, modeImageBtn, modeDocxBtn].forEach(b => b.classList.remove('active'));
+    ({ pdf: modePdfBtn, image: modeImageBtn, docx: modeDocxBtn }[mode]).classList.add('active');
+
+    if (mode === 'pdf') {
+      fileInput.accept = 'application/pdf'; fileLabel.textContent = 'Upload PDF';
+      modeNote.textContent = 'PyMuPDF reads exact embedded font data — no API key needed.';
+    } else if (mode === 'image') {
+      fileInput.accept = 'image/png,image/jpeg'; fileLabel.textContent = 'Upload PNG/JPG';
+      modeNote.textContent = 'Uses the AI provider above to estimate text style from pixels — needs an API key (saved above, or set on your backend).';
+    } else {
+      fileInput.accept = '.docx'; fileLabel.textContent = 'Upload .docx';
+      modeNote.textContent = 'Reads exact run-level styling. Word documents reflow, so edits are listed rather than tapped on a canvas.';
+    }
+
+    canvasPanel.style.display = 'none';
+    listPanel.style.display = 'none';
+    downloadBtn.style.display = 'none';
+    extractStatus.textContent = '';
+    documentId = null; currentFile = null; pdfPages = []; pdfRegionsByPage = {}; imageRegions = []; docxRuns = [];
+    hidePopover();
   }
   modePdfBtn.addEventListener('click', () => setMode('pdf'));
   modeImageBtn.addEventListener('click', () => setMode('image'));
+  modeDocxBtn.addEventListener('click', () => setMode('docx'));
 
-  extractBtn.addEventListener('click', async () => {
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) {
+      currentFile = fileInput.files[0];
+      currentFilename = currentFile.name.replace(/\.[^.]+$/, '');
+    }
+  });
+
+  extractBtn.addEventListener('click', () => runExtract());
+
+  async function runExtract() {
     const base = apiBase();
     if (!base) { apiStatus.textContent = 'Enter the API URL first.'; apiStatus.className = 'status error'; return; }
-    if (!fileInput.files.length) { extractStatus.textContent = 'Choose a file first.'; extractStatus.className = 'status error'; return; }
+    if (!currentFile) { extractStatus.textContent = 'Choose a file first.'; extractStatus.className = 'status error'; return; }
 
     extractBtn.disabled = true;
-    extractStatus.textContent = mode === 'image' ? 'Uploading and analyzing with Gemini…' : 'Uploading and extracting…';
+    extractStatus.textContent = 'Analyzing…';
     extractStatus.className = 'status';
+    hidePopover();
 
     try {
       const form = new FormData();
-      form.append('file', fileInput.files[0]);
-      const endpoint = mode === 'pdf' ? '/extract' : '/extract-image';
-      const res = await fetch(base + endpoint, { method: 'POST', body: form });
+      form.append('file', currentFile, currentFilename + (mode === 'pdf' ? '.pdf' : mode === 'docx' ? '.docx' : '.png'));
+
+      let endpoint, headers = {};
+      if (mode === 'pdf') endpoint = '/extract';
+      else if (mode === 'docx') endpoint = '/extract-docx';
+      else {
+        endpoint = '/extract-image';
+        headers['X-Ai-Provider'] = providerSelect.value;
+        const key = localStorage.getItem('typeclone_ai_key_' + providerSelect.value);
+        if (key) headers['X-Ai-Api-Key'] = key;
+      }
+
+      const res = await fetch(base + endpoint, { method: 'POST', body: form, headers });
       if (!res.ok) {
         const errBody = await res.text();
-        throw new Error(`Server returned ${res.status}: ${errBody.slice(0, 200)}`);
+        throw new Error(`Server returned ${res.status}: ${errBody.slice(0, 250)}`);
       }
       const data = await res.json();
-
       documentId = data.document_id;
-      regions = data.regions;
 
-      regionList.innerHTML = '';
-      regions.forEach((r) => {
-        const div = document.createElement('div');
-        div.className = 'region-item';
-        const meta = mode === 'pdf'
-          ? `page ${r.page + 1} · ${r.font_family} · ${r.font_size_pt}pt · ${r.weight >= 600 ? 'bold' : 'regular'}${r.italic ? ' italic' : ''}`
-          : `~${r.font_size_px}px · ${r.bold ? 'bold' : 'regular'}${r.italic ? ' italic' : ''} · ${r.color_hex}`;
-        div.innerHTML = `"${r.text}"<small>${meta}</small>`;
-        div.addEventListener('click', () => selectRegion(r, div));
-        regionList.appendChild(div);
-      });
+      if (mode === 'pdf') {
+        pdfPages = data.page_images_base64;
+        pdfRegionsByPage = {};
+        data.regions.forEach(r => {
+          (pdfRegionsByPage[r.page] = pdfRegionsByPage[r.page] || []).push(r);
+        });
+        currentPage = 0;
+        renderPdfPage();
+        canvasPanel.style.display = 'block';
+        listPanel.style.display = 'none';
+        pageNav.style.display = data.page_count > 1 ? 'flex' : 'none';
+        extractStatus.textContent = `Found ${data.regions.length} text regions across ${data.page_count} page(s).`;
+      } else if (mode === 'image') {
+        imageRegions = data.regions;
+        renderImageCanvas();
+        canvasPanel.style.display = 'block';
+        listPanel.style.display = 'none';
+        pageNav.style.display = 'none';
+        extractStatus.textContent = `${data.provider} found ${data.regions.length} text regions.`;
+      } else {
+        docxRuns = data.runs;
+        renderDocxList();
+        listPanel.style.display = 'block';
+        canvasPanel.style.display = 'none';
+        extractStatus.textContent = `Found ${data.runs.length} editable text runs.`;
+      }
 
-      regionsPanel.style.display = 'block';
-      extractStatus.textContent = mode === 'pdf'
-        ? `Found ${regions.length} text regions across ${data.page_count} page(s).`
-        : `Gemini found ${regions.length} text regions.`;
       extractStatus.className = 'status ok';
+      downloadBtn.style.display = 'inline-block';
     } catch (err) {
-      extractStatus.textContent = 'Failed: ' + err.message + ' (check the API URL, and that GEMINI_API_KEY is set on the backend for image mode; free-tier services also sleep after inactivity — first request can take ~30s)';
+      extractStatus.textContent = 'Failed: ' + err.message;
       extractStatus.className = 'status error';
     } finally {
       extractBtn.disabled = false;
     }
-  });
-
-  function selectRegion(region, el) {
-    selectedRegion = region;
-    document.querySelectorAll('.region-item').forEach((n) => n.classList.remove('selected'));
-    el.classList.add('selected');
-    newTextInput.value = region.text;
-    editPanel.style.display = 'block';
-    editStatus.textContent = '';
   }
 
-  applyBtn.addEventListener('click', async () => {
-    const base = apiBase();
-    if (!selectedRegion || !documentId) { editStatus.textContent = 'Select a region first.'; editStatus.className = 'status error'; return; }
-    if (!newTextInput.value.trim()) { editStatus.textContent = 'Enter replacement text.'; editStatus.className = 'status error'; return; }
+  function renderPdfPage() {
+    canvasImg.src = 'data:image/png;base64,' + pdfPages[currentPage];
+    pageLabel.textContent = `Page ${currentPage + 1} / ${pdfPages.length}`;
+    canvasImg.onload = () => drawRegionBoxes(pdfRegionsByPage[currentPage] || [], 'pdf');
+  }
+  prevPageBtn.addEventListener('click', () => { if (currentPage > 0) { currentPage--; renderPdfPage(); } });
+  nextPageBtn.addEventListener('click', () => { if (currentPage < pdfPages.length - 1) { currentPage++; renderPdfPage(); } });
 
-    applyBtn.disabled = true;
-    editStatus.textContent = 'Rendering edited PDF…';
-    editStatus.className = 'status';
+  function renderImageCanvas() {
+    canvasImg.src = URL.createObjectURL(currentFile);
+    canvasImg.onload = () => drawRegionBoxes(imageRegions, 'image');
+  }
+
+  function drawRegionBoxes(regions, kind) {
+    regionOverlay.innerHTML = '';
+    regions.forEach(region => {
+      const [x0, y0, x1, y1] = region.bbox_pct;
+      const box = document.createElement('div');
+      box.className = 'region-box';
+      box.style.left = x0 + '%';
+      box.style.top = y0 + '%';
+      box.style.width = (x1 - x0) + '%';
+      box.style.height = (y1 - y0) + '%';
+      box.addEventListener('click', (e) => openPopover(region, kind, box, e));
+      regionOverlay.appendChild(box);
+    });
+  }
+
+  function renderDocxList() {
+    runList.innerHTML = '';
+    docxRuns.forEach(run => {
+      const div = document.createElement('div');
+      div.className = 'run-item';
+      const styleBits = [run.bold ? 'bold' : null, run.italic ? 'italic' : null, run.font_name, run.font_size_pt ? run.font_size_pt + 'pt' : null].filter(Boolean).join(' · ');
+      div.innerHTML = `"${run.text}"<small>${styleBits || 'default style'}</small>`;
+      div.addEventListener('click', (e) => openPopover(run, 'docx', div, e));
+      runList.appendChild(div);
+    });
+  }
+
+  function openPopover(region, kind, anchorEl, event) {
+    activeRegionForEdit = region;
+    activeEditKind = kind;
+    popoverText.value = region.text;
+
+    document.querySelectorAll('.region-box.editing').forEach(b => b.classList.remove('editing'));
+    document.querySelectorAll('.run-item.selected').forEach(b => b.classList.remove('selected'));
+    if (kind === 'docx') anchorEl.classList.add('selected'); else anchorEl.classList.add('editing');
+
+    const rect = anchorEl.getBoundingClientRect();
+    popover.style.display = 'block';
+    const top = Math.min(rect.bottom + 8, window.innerHeight - 140);
+    const left = Math.min(Math.max(rect.left, 10), window.innerWidth - 330);
+    popover.style.top = top + 'px';
+    popover.style.left = left + 'px';
+    popoverText.focus();
+  }
+
+  function hidePopover() {
+    popover.style.display = 'none';
+    activeRegionForEdit = null;
+    activeEditKind = null;
+  }
+  popoverCancel.addEventListener('click', hidePopover);
+
+  popoverSave.addEventListener('click', async () => {
+    if (!activeRegionForEdit) return;
+    const newText = popoverText.value;
+    popoverSave.disabled = true;
 
     try {
+      const base = apiBase();
       const form = new FormData();
-      form.append('document_id', documentId);
-      form.append('region_json', JSON.stringify(selectedRegion));
-      form.append('new_text', newTextInput.value);
+      let endpoint;
 
-      const endpoint = mode === 'pdf' ? '/edit' : '/edit-image';
+      if (activeEditKind === 'pdf') {
+        form.append('document_id', documentId);
+        form.append('region_json', JSON.stringify(activeRegionForEdit));
+        form.append('new_text', newText);
+        endpoint = '/edit';
+      } else if (activeEditKind === 'image') {
+        form.append('document_id', documentId);
+        form.append('region_json', JSON.stringify(activeRegionForEdit));
+        form.append('new_text', newText);
+        endpoint = '/edit-image';
+      } else {
+        form.append('document_id', documentId);
+        form.append('paragraph_index', activeRegionForEdit.paragraph_index);
+        form.append('run_index', activeRegionForEdit.run_index);
+        form.append('new_text', newText);
+        endpoint = '/edit-docx';
+      }
+
       const res = await fetch(base + endpoint, { method: 'POST', body: form });
       if (!res.ok) {
         const errBody = await res.text();
-        throw new Error(`Server returned ${res.status}: ${errBody.slice(0, 200)}`);
+        throw new Error(`Server returned ${res.status}: ${errBody.slice(0, 250)}`);
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = mode === 'pdf' ? 'edited.pdf' : 'edited.png';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-
-      editStatus.textContent = 'Done — edited file downloaded.';
-      editStatus.className = 'status ok';
+      currentFile = await res.blob();
+      hidePopover();
+      extractStatus.textContent = 'Edit applied — refreshing preview…';
+      extractStatus.className = 'status';
+      await runExtract();
     } catch (err) {
-      editStatus.textContent = 'Failed: ' + err.message;
-      editStatus.className = 'status error';
+      extractStatus.textContent = 'Edit failed: ' + err.message;
+      extractStatus.className = 'status error';
     } finally {
-      applyBtn.disabled = false;
+      popoverSave.disabled = false;
     }
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    if (!currentFile) return;
+    const ext = mode === 'pdf' ? 'pdf' : mode === 'docx' ? 'docx' : 'png';
+    const url = URL.createObjectURL(currentFile);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `edited.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   });
 </script>
 
