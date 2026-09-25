@@ -36,6 +36,18 @@
   header p { color: var(--muted); max-width: 640px; margin: 0 auto; }
   .badges { margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
   .badge { border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--muted); }
+  .credit-strip {
+    text-align: center; padding: 10px 16px; font-size: 12.5px; letter-spacing: 0.06em;
+    color: var(--muted); border-bottom: 1px solid var(--border); background: #0e1015;
+  }
+  .credit-strip strong { color: var(--accent2); font-weight: 700; }
+  .credit-strip a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--border); }
+  .credit-strip a:hover { color: var(--accent); }
+  .launch-btn {
+    display: inline-block; margin-top: 22px; padding: 12px 28px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #0b0d12;
+    font-weight: 700; text-decoration: none; font-size: 15px;
+  }
   main { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
   section { margin-bottom: 56px; }
   h2 { font-size: 22px; border-left: 3px solid var(--accent); padding-left: 12px; }
@@ -83,17 +95,24 @@
 </head>
 <body>
 
+<div class="credit-strip">
+  DESIGNED &amp; DEVELOPED BY <strong>NIKHIL CHARY SRIRAMOJU</strong> ·
+  <a href="https://github.com/Nikhil-creat">GITHUB</a> ·
+  <a href="https://in.linkedin.com/in/nikhil-chary-sriramoju-95041b38a">LINKEDIN</a> ·
+  <a href="mailto:sriramojunikhil66@gmail.com">EMAIL</a>
+</div>
+
 <header>
   <h1>TypeClone</h1>
   <p>An enterprise-grade PDF &amp; PNG typography engine — detects, clones, and re-renders text
   with pixel-faithful font weight, style, baseline, and color, inside a live WYSIWYG canvas.</p>
   <div class="badges">
     <span class="badge">PyMuPDF vector engine</span>
-    <span class="badge">PaddleOCR + OpenCV raster engine</span>
-    <span class="badge">FastAPI · Celery · Redis</span>
+    <span class="badge">Gemini-powered image engine</span>
+    <span class="badge">FastAPI backend</span>
     <span class="badge">Konva.js canvas</span>
-    <span class="badge">WebSocket live sync</span>
   </div>
+  <a class="launch-btn" href="./app.html">Launch Live Editor →</a>
 </header>
 
 <main>
@@ -137,7 +156,7 @@ Redis (broker)        PyMuPDF · PaddleOCR · OpenCV · PyTorch
    │
    ▼
 Postgres (metadata) · MinIO/S3 (documents)</pre>
-  <p>See <a href="https://github.com/OWNER/REPO/blob/main/ARCHITECTURE.md">ARCHITECTURE.md</a>
+  <p>See <a href="https://github.com/Nikhil-creat/typeclone/blob/main/ARCHITECTURE.md">ARCHITECTURE.md</a>
      in the repo for the full data-flow breakdown and typography schema.</p>
 </section>
 
@@ -156,24 +175,26 @@ Postgres (metadata) · MinIO/S3 (documents)</pre>
 
 <section>
   <h2>Run it locally</h2>
-  <pre>git clone https://github.com/OWNER/REPO.git
-cd REPO
-docker compose up --build
-# API      → http://localhost:8000
-# Frontend → http://localhost:3000</pre>
-  <p>This documentation page is static and runs on GitHub Pages; the engine itself
-  (FastAPI + Celery + OpenCV/PaddleOCR/PyTorch) needs a real container host — see the
-  README for one-click deploy notes.</p>
+  <pre>git clone https://github.com/Nikhil-creat/typeclone.git
+cd typeclone/backend-lite
+pip install -r requirements.txt
+uvicorn app:app --reload
+# Or skip local setup entirely — deploy free on Render (see README-LITE.md)</pre>
+  <p>This documentation page is static and runs on GitHub Pages. The working engine
+  (<code>backend-lite/</code> — FastAPI + PyMuPDF + Gemini vision) is deployed separately
+  on Render's free tier and powers the <a href="./app.html">Live Editor</a>. A heavier
+  full architecture (Celery/Redis/PaddleOCR/PyTorch) also exists in this repo for anyone
+  wanting to self-host at production scale — see <code>ARCHITECTURE.md</code>.</p>
 </section>
 
 </main>
 
 <footer>
-  TypeClone — built with PyMuPDF, PaddleOCR, OpenCV, PyTorch, FastAPI, Celery &amp; Konva.js.<br/>
-  Designed &amp; developed by <strong>Nikhil Chary Sriramoju</strong> —
-  <a href="https://github.com/Nikhil-creat">GitHub</a> ·
-  <a href="https://in.linkedin.com/in/nikhil-chary-sriramoju-95041b38a">LinkedIn</a> ·
-  <a href="mailto:sriramojunikhil66@gmail.com">Email</a>
+  TypeClone — built with PyMuPDF, Gemini API, FastAPI &amp; vanilla JS.<br/>
+  DESIGNED &amp; DEVELOPED BY <strong>NIKHIL CHARY SRIRAMOJU</strong> —
+  <a href="https://github.com/Nikhil-creat">GITHUB</a> ·
+  <a href="https://in.linkedin.com/in/nikhil-chary-sriramoju-95041b38a">LINKEDIN</a> ·
+  <a href="mailto:sriramojunikhil66@gmail.com">EMAIL</a>
 </footer>
 
 <script>
